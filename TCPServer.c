@@ -1,4 +1,3 @@
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -30,6 +29,8 @@ void *game(void *data) {
     char firstCard, secondCard, firstX, firstY;
     DATA *dat = data;
 
+    int winningPoints = ((*dat->gameSize * *dat->gameSize) / 2) + 1;
+
     char gameBoardResult[*dat->gameSize][*dat->gameSize];
     for(int i = 0; i < *dat->gameSize; i++) {
         for (int j = 0; j < *dat->gameSize; ++j) {
@@ -55,6 +56,11 @@ void *game(void *data) {
             gameBoardResult[buffer[3]-1][buffer[4]-1] =  *(*(dat->gameBoard + (buffer[4]-1)) + (buffer[3]-1));
             *dat->score_PLAYER2++;
         }
+        if(buffer[0] == '~') {
+            printf("Prehrali ste!\n");
+            return 0;
+        }
+
         while(cardCount < 2) {
 
             broken = 0;
@@ -81,6 +87,22 @@ void *game(void *data) {
                 broken = 1;
                 break;
             }
+            if(gameBoardResult[x-1][y-1] != '?') {
+                printf("Tato karta je uz otocena, vyberte znova!\n");
+                broken = 1;
+                break;
+            }
+
+            if(cardCount == 1) {
+                if(x == firstX && y == firstY) {
+                    firstX = 0;
+                    firstY = 0;
+                    printf("Tato karta je uz otocena, vyberte znova!\n");
+                    broken = 1;
+                    break;
+                }
+            }
+
             if(cardCount == 0) {
                 firstX = x;
                 firstY = y;
@@ -105,9 +127,12 @@ void *game(void *data) {
             continue;
         }
         sleep(3);
+        system("clear");
+        printf("\n");
         bzero(buffer,256);
 
         if(firstCard == secondCard) {
+            *dat->score_PLAYER1++;
             buffer[0] = '+';
             buffer[1] = firstX;
             buffer[2] = firstY;
@@ -115,12 +140,26 @@ void *game(void *data) {
             buffer[4] = y;
             gameBoardResult[firstX-1][firstY-1] = firstCard;
             gameBoardResult[x-1][y-1] = secondCard;
-            n = write(*dat->socket, buffer, strlen(buffer));
-            if (n < 0)
-            {
-                perror("Error writing to socket");
-                return 5;
+            if(*dat->score_PLAYER1 == winningPoints) {
+                buffer[0] = '~';
+                n = write(*dat->socket, buffer, strlen(buffer));
+                if (n < 0)
+                {
+                    perror("Error writing to socket");
+                    return 5;
+                }
+                printf("Vyhrali ste!\n");
+                pthread_mutex_unlock(dat->mutex);
+                return 0;
+            } else {
+                n = write(*dat->socket, buffer, strlen(buffer));
+                if (n < 0)
+                {
+                    perror("Error writing to socket");
+                    return 5;
+                }
             }
+
         } else {
             buffer[0] = '-';
             gameBoardResult[firstX-1][firstY-1] = '?';
@@ -132,13 +171,15 @@ void *game(void *data) {
                 return 5;
             }
         }
+        for(int i = 0; i < *dat->gameSize; i++) { // Print board
+            for (int j = 0; j < *dat->gameSize; ++j) {
+                printf("%c ",gameBoardResult[i][j]);
+            }
+            printf("\n");
+        }
+        printf("Hrac 2 je na tahu!\n");
 
-        //*dat->gameState = 1;
     }
-    pthread_mutex_unlock(dat->mutex);
-    //bzero(buffer,256);
-    //buffer[0] = '/';
-    //write(*dat->socket,buffer,255);
 }
 
 void *generation(void *data) {
@@ -174,12 +215,6 @@ void *generation(void *data) {
         }
     }
 
-    /*for (int i = 0; i < *dat->gameSize; i++) {
-        for (int j = 0; j < *dat->gameSize; j++) {
-            printf("%c",*(*(dat->gameBoard + j) + i));
-        }
-        printf("\n");
-    }*/
     *dat->generation = 1;
     pthread_mutex_unlock(dat->mutex);
     pthread_cond_signal(dat->COND_GENERATING);
@@ -256,6 +291,7 @@ int main(int argc, char *argv[]) {
                 correctSize = true;
         }
     }
+    printf("Cakajte na kolo Hraca 2\n");
     char **gameBoard = (char **) malloc(size * sizeof(char *));
     for (int i = 0; i < size; i++) {
         gameBoard[i] = (char *) malloc(size * sizeof(char));
@@ -275,19 +311,6 @@ int main(int argc, char *argv[]) {
     pthread_join(Tgenerate, NULL);
     pthread_join(Tplay, NULL);
 
-    //n = read(newsockfd, buffer, 255);
-    //if (n < 0) {
-    //    perror("Error reading from socket");
-    //    return 4;
-    //}
-    //printf("Here is the message: %s\n", buffer);
-
-    //const char *msg = "I got your message";
-    //n = write(newsockfd, msg, strlen(msg) + 1);
-    //if (n < 0) {
-    //    perror("Error writing to socket");
-    //    return 5;
-    //}
     for (int i = 0; i < size; i++) {
         free(gameBoard[i]);
     }
