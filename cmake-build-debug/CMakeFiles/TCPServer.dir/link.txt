@@ -1,0 +1,1 @@
+/usr/bin/cc -g CMakeFiles/TCPServer.dir/TCPServer.c.o -o TCPServer  -lpthread -lm 
