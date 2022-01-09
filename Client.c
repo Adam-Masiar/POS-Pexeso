@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
     printf("Game Loaded!\n");
 
     int player1 = 0;
-    int player2 = 8;
+    int player2 = 0;
     int winningPoints = ((gameSize * gameSize) / 2) + 1;
 
     while(1) {
